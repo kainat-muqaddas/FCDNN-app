@@ -52,20 +52,35 @@ else:
 # LOAD CHECKPOINT WITH CACHING FOR MAXIMUM SPEED
 @st.cache_resource
 def get_model(case_name):
-    checkpoint_paths = {
+    checkpoint_filenames = {
         "Cavity": "cavity_checkpoint.pt",
         "Cylinder": "cylinder_checkpoint.pt",
         "Backward Facing Step": "bfs_checkpoint.pt",
         "NACA0012": "naca_checkpoint.pt",
     }
 
-    path = checkpoint_paths[case_name]
-    if not os.path.exists(path):
+    filename = checkpoint_filenames[case_name]
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Check potential path locations (checkpoints directory first, then root)
+    possible_paths = [
+        os.path.join(base_dir, "checkpoints", filename),
+        os.path.join(base_dir, filename),
+        filename,
+    ]
+
+    target_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            target_path = path
+            break
+
+    if not target_path:
         raise FileNotFoundError(
-            f"Checkpoint file '{path}' not found in repository root."
+            f"Checkpoint file '{filename}' not found in 'checkpoints/' or repository root."
         )
 
-    return load_checkpoint(path)
+    return load_checkpoint(target_path)
 
 
 # PREDICT BUTTON
@@ -158,4 +173,3 @@ if predict_btn:
 
     except Exception as e:
         st.error(f"Prediction failed: {str(e)}")
-   
