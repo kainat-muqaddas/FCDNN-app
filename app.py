@@ -110,13 +110,27 @@ if predict_btn:
         x_coords = xy[:, 0]
         y_coords = xy[:, 1]
 
-        # Calculate tight physical bounds to eliminate excess whitespace
-        x_min, x_max = x_coords.min(), x_coords.max()
-        y_min, y_max = y_coords.min(), y_coords.max()
+        # AUTO-ZOOM & CROP LIMITS SPECIFIC TO GEOMETRY REGIONS OF INTEREST
+        if case == "Cylinder":
+            # Focus on wake shedding region behind cylinder
+            x_min, x_max = -1.0, 5.0
+            y_min, y_max = -1.5, 1.5
+        elif case == "Backward Facing Step":
+            # Focus on recirculation zone behind the step
+            x_min, x_max = -1.0, 8.0
+            y_min, y_max = -0.5, 1.5
+        elif case == "NACA0012":
+            # Focus tightly around the airfoil geometry
+            x_min, x_max = -0.5, 1.8
+            y_min, y_max = -0.8, 0.8
+        else:
+            # Default tight spatial bounds (e.g., Cavity)
+            x_min, x_max = x_coords.min(), x_coords.max()
+            y_min, y_max = y_coords.min(), y_coords.max()
 
-        # Interpolate spatial points onto a dense regular grid for smooth rendering
-        grid_x_1d = np.linspace(x_min, x_max, 300)
-        grid_y_1d = np.linspace(y_min, y_max, 300)
+        # Interpolate spatial points onto a dense regular grid for high-resolution rendering
+        grid_x_1d = np.linspace(x_min, x_max, 350)
+        grid_y_1d = np.linspace(y_min, y_max, 350)
         grid_x, grid_y = np.meshgrid(grid_x_1d, grid_y_1d)
 
         grid_p = griddata((x_coords, y_coords), p, (grid_x, grid_y), method="cubic")
@@ -125,8 +139,8 @@ if predict_btn:
 
         st.success(f"Prediction completed for {case}")
 
-        # CLEAN, SMOOTH FLOW FIELD PLOTTING FUNCTION
-        def create_flow_figure(z_data, colorscale="Turbo", height=450):
+        # CLEAN, HIGH-CONTRAST ZOOMED FLOW FIELD PLOTTING FUNCTION
+        def create_flow_figure(z_data, colorscale="Turbo", height=480):
             fig = go.Figure(
                 data=go.Contour(
                     x=grid_x_1d,
@@ -138,7 +152,7 @@ if predict_btn:
                         coloring="heatmap",
                         showlines=False,  # Completely removes contour isolines
                     ),
-                    line=dict(width=0),  # Ensures no trace border lines
+                    line=dict(width=0),
                     colorbar=dict(
                         len=0.9,
                         thickness=14,
@@ -152,6 +166,7 @@ if predict_btn:
                     range=[x_min, x_max],
                     showgrid=False,
                     zeroline=False,
+                    constrain="domain",
                 ),
                 yaxis=dict(
                     title="y",
@@ -160,13 +175,14 @@ if predict_btn:
                     scaleratio=1,
                     showgrid=False,
                     zeroline=False,
+                    constrain="domain",
                 ),
-                margin=dict(l=20, r=20, t=20, b=20),
+                margin=dict(l=15, r=15, t=15, b=15),
                 height=height,
             )
             return fig
 
-        plotly_config = {"displayModeBar": False}  # Removes top toolbar overlays
+        plotly_config = {"displayModeBar": False}
 
         # RENDER BASED ON VARIABLE SELECTION
         if selected_variable == "All Variables":
@@ -189,17 +205,17 @@ if predict_btn:
 
         elif selected_variable == "Absolute Pressure":
             st.subheader("Absolute Pressure")
-            fig_p = create_flow_figure(grid_p, colorscale="Turbo", height=600)
+            fig_p = create_flow_figure(grid_p, colorscale="Turbo", height=650)
             st.plotly_chart(fig_p, use_container_width=True, config=plotly_config)
 
         elif selected_variable == "U Velocity":
             st.subheader("U Velocity")
-            fig_u = create_flow_figure(grid_u, colorscale="Turbo", height=600)
+            fig_u = create_flow_figure(grid_u, colorscale="Turbo", height=650)
             st.plotly_chart(fig_u, use_container_width=True, config=plotly_config)
 
         elif selected_variable == "V Velocity":
             st.subheader("V Velocity")
-            fig_v = create_flow_figure(grid_v, colorscale="Turbo", height=600)
+            fig_v = create_flow_figure(grid_v, colorscale="Turbo", height=650)
             st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)
 
     except Exception as e:
