@@ -22,7 +22,7 @@ st.set_page_config(
 st.title("⚡ FluidPulse AI")
 st.markdown(
     """
-    Rapid CFD surrogate modeling power powered by POD-FCDNN neural architectures.
+    Rapid CFD surrogate modeling powered by POD-FCDNN neural architectures.
     Real-time flow field prediction and spatial reconstruction.
     """
 )
@@ -49,6 +49,13 @@ with st.sidebar:
         param = st.slider(
             "Reynolds Number", min_value=100, max_value=10000, value=1000, step=100
         )
+
+    # VARIABLE SELECTION
+    selected_variable = st.radio(
+        "Select Flow Variable",
+        ["All Variables", "Absolute Pressure", "U Velocity", "V Velocity"],
+        index=0,
+    )
 
     # PREDICT BUTTON
     predict_btn = st.button("Predict Flow Field", use_container_width=True)
@@ -108,8 +115,8 @@ if predict_btn:
         y_min, y_max = y_coords.min(), y_coords.max()
 
         # Interpolate spatial points onto a dense regular grid for smooth rendering
-        grid_x_1d = np.linspace(x_min, x_max, 250)
-        grid_y_1d = np.linspace(y_min, y_max, 250)
+        grid_x_1d = np.linspace(x_min, x_max, 300)
+        grid_y_1d = np.linspace(y_min, y_max, 300)
         grid_x, grid_y = np.meshgrid(grid_x_1d, grid_y_1d)
 
         grid_p = griddata((x_coords, y_coords), p, (grid_x, grid_y), method="cubic")
@@ -118,8 +125,8 @@ if predict_btn:
 
         st.success(f"Prediction completed for {case}")
 
-        # Helper function for tight, clean flow field figures
-        def create_flow_figure(title, z_data, colorscale):
+        # CLEAN, SMOOTH FLOW FIELD PLOTTING FUNCTION
+        def create_flow_figure(z_data, colorscale="Turbo", height=450):
             fig = go.Figure(
                 data=go.Contour(
                     x=grid_x_1d,
@@ -127,46 +134,73 @@ if predict_btn:
                     z=z_data,
                     colorscale=colorscale,
                     line_smoothing=1.3,
-                    contours=dict(coloring="heatmap", showlines=False),
-                    colorbar=dict(len=0.8, thickness=15),
+                    contours=dict(
+                        coloring="heatmap",
+                        showlines=False,  # Completely removes contour isolines
+                    ),
+                    line=dict(width=0),  # Ensures no trace border lines
+                    colorbar=dict(
+                        len=0.9,
+                        thickness=14,
+                        tickfont=dict(size=10),
+                    ),
                 )
             )
             fig.update_layout(
-                title=dict(text=title, x=0.5, xanchor="center"),
                 xaxis=dict(
                     title="x",
                     range=[x_min, x_max],
-                    constrain="domain",
+                    showgrid=False,
+                    zeroline=False,
                 ),
                 yaxis=dict(
                     title="y",
                     range=[y_min, y_max],
                     scaleanchor="x",
                     scaleratio=1,
-                    constrain="domain",
+                    showgrid=False,
+                    zeroline=False,
                 ),
-                margin=dict(l=10, r=10, t=40, b=10),
-                height=450,
+                margin=dict(l=20, r=20, t=20, b=20),
+                height=height,
             )
             return fig
 
-        # 3-COLUMN SIDE-BY-SIDE LAYOUT
-        col1, col2, col3 = st.columns(3)
+        plotly_config = {"displayModeBar": False}  # Removes top toolbar overlays
 
-        with col1:
+        # RENDER BASED ON VARIABLE SELECTION
+        if selected_variable == "All Variables":
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.subheader("Absolute Pressure")
+                fig_p = create_flow_figure(grid_p, colorscale="Turbo", height=450)
+                st.plotly_chart(fig_p, use_container_width=True, config=plotly_config)
+
+            with col2:
+                st.subheader("U Velocity")
+                fig_u = create_flow_figure(grid_u, colorscale="Turbo", height=450)
+                st.plotly_chart(fig_u, use_container_width=True, config=plotly_config)
+
+            with col3:
+                st.subheader("V Velocity")
+                fig_v = create_flow_figure(grid_v, colorscale="Turbo", height=450)
+                st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)
+
+        elif selected_variable == "Absolute Pressure":
             st.subheader("Absolute Pressure")
-            fig_p = create_flow_figure("Pressure Field", grid_p, "Viridis")
-            st.plotly_chart(fig_p, use_container_width=True)
+            fig_p = create_flow_figure(grid_p, colorscale="Turbo", height=600)
+            st.plotly_chart(fig_p, use_container_width=True, config=plotly_config)
 
-        with col2:
+        elif selected_variable == "U Velocity":
             st.subheader("U Velocity")
-            fig_u = create_flow_figure("U Velocity Field", grid_u, "RdBu_r")
-            st.plotly_chart(fig_u, use_container_width=True)
+            fig_u = create_flow_figure(grid_u, colorscale="Turbo", height=600)
+            st.plotly_chart(fig_u, use_container_width=True, config=plotly_config)
 
-        with col3:
+        elif selected_variable == "V Velocity":
             st.subheader("V Velocity")
-            fig_v = create_flow_figure("V Velocity Field", grid_v, "RdBu_r")
-            st.plotly_chart(fig_v, use_container_width=True)
+            fig_v = create_flow_figure(grid_v, colorscale="Turbo", height=600)
+            st.plotly_chart(fig_v, use_container_width=True, config=plotly_config)
 
     except Exception as e:
         st.error(f"Prediction failed: {str(e)}")
