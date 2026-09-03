@@ -13,40 +13,45 @@ from engine import load_checkpoint, predict_and_reconstruct
 
 # Page Configuration
 st.set_page_config(
-    page_title="POD-FCDNN Surrogate Model",
-    page_icon="🌊",
+    page_title="FluidPulse AI",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-st.title("🌊 POD-FCDNN Fluid Dynamics Surrogate Model")
+st.title("⚡ FluidPulse AI")
 st.markdown(
     """
-    Train and deploy a neural network surrogate model for rapid CFD prediction.
-    Combines Proper Orthogonal Decomposition with Deep Learning.
+    Rapid CFD surrogate modeling power powered by POD-FCDNN neural architectures.
+    Real-time flow field prediction and spatial reconstruction.
     """
 )
 
-st.header("Flow Field Prediction")
+# SIDEBAR: CONTROLS & PARAMETERS
+with st.sidebar:
+    st.header("Control Panel")
 
-# CASE SELECTION
-case = st.selectbox(
-    "Select Case", ["Cavity", "Cylinder", "Backward Facing Step", "NACA0012"]
-)
+    # CASE SELECTION
+    case = st.selectbox(
+        "Select Case", ["Cavity", "Cylinder", "Backward Facing Step", "NACA0012"]
+    )
 
-# PARAMETER INPUT
-if case == "NACA0012":
-    param = st.slider(
-        "Angle of Attack (α)",
-        min_value=-5.0,
-        max_value=15.0,
-        value=0.0,
-        step=0.5,
-    )
-else:
-    param = st.slider(
-        "Reynolds Number", min_value=100, max_value=10000, value=1000, step=100
-    )
+    # PARAMETER INPUT
+    if case == "NACA0012":
+        param = st.slider(
+            "Angle of Attack (α)",
+            min_value=-5.0,
+            max_value=15.0,
+            value=0.0,
+            step=0.5,
+        )
+    else:
+        param = st.slider(
+            "Reynolds Number", min_value=100, max_value=10000, value=1000, step=100
+        )
+
+    # PREDICT BUTTON
+    predict_btn = st.button("Predict Flow Field", use_container_width=True)
 
 
 # LOAD CHECKPOINT WITH CACHING FOR MAXIMUM SPEED
@@ -62,7 +67,7 @@ def get_model(case_name):
     filename = checkpoint_filenames[case_name]
     base_dir = os.path.dirname(os.path.abspath(__file__))
 
-    # Check potential path locations (checkpoints directory first, then root)
+    # Check potential path locations
     possible_paths = [
         os.path.join(base_dir, "checkpoints", filename),
         os.path.join(base_dir, filename),
@@ -83,9 +88,7 @@ def get_model(case_name):
     return load_checkpoint(target_path)
 
 
-# PREDICT BUTTON
-predict_btn = st.button("Predict Flow Field", use_container_width=True)
-
+# MAIN DASHBOARD AREA
 if predict_btn:
     try:
         trainer = get_model(case)
@@ -100,9 +103,13 @@ if predict_btn:
         x_coords = xy[:, 0]
         y_coords = xy[:, 1]
 
+        # Calculate tight physical bounds to eliminate excess whitespace
+        x_min, x_max = x_coords.min(), x_coords.max()
+        y_min, y_max = y_coords.min(), y_coords.max()
+
         # Interpolate spatial points onto a dense regular grid for smooth rendering
-        grid_x_1d = np.linspace(x_coords.min(), x_coords.max(), 250)
-        grid_y_1d = np.linspace(y_coords.min(), y_coords.max(), 250)
+        grid_x_1d = np.linspace(x_min, x_max, 250)
+        grid_y_1d = np.linspace(y_min, y_max, 250)
         grid_x, grid_y = np.meshgrid(grid_x_1d, grid_y_1d)
 
         grid_p = griddata((x_coords, y_coords), p, (grid_x, grid_y), method="cubic")
@@ -111,65 +118,57 @@ if predict_btn:
 
         st.success(f"Prediction completed for {case}")
 
-        # PRESSURE FIELD
-        st.subheader("Pressure Field")
-        fig_p = go.Figure(
-            data=go.Contour(
-                x=grid_x_1d,
-                y=grid_y_1d,
-                z=grid_p,
-                colorscale="Viridis",
-                line_smoothing=1.3,
-                contours=dict(coloring="heatmap", showlines=False),
+        # Helper function for tight, clean flow field figures
+        def create_flow_figure(title, z_data, colorscale):
+            fig = go.Figure(
+                data=go.Contour(
+                    x=grid_x_1d,
+                    y=grid_y_1d,
+                    z=z_data,
+                    colorscale=colorscale,
+                    line_smoothing=1.3,
+                    contours=dict(coloring="heatmap", showlines=False),
+                    colorbar=dict(len=0.8, thickness=15),
+                )
             )
-        )
-        fig_p.update_layout(
-            title=f"{case} Pressure Field",
-            xaxis_title="x",
-            yaxis_title="y",
-            height=500,
-        )
-        st.plotly_chart(fig_p, use_container_width=True)
+            fig.update_layout(
+                title=dict(text=title, x=0.5, xanchor="center"),
+                xaxis=dict(
+                    title="x",
+                    range=[x_min, x_max],
+                    constrain="domain",
+                ),
+                yaxis=dict(
+                    title="y",
+                    range=[y_min, y_max],
+                    scaleanchor="x",
+                    scaleratio=1,
+                    constrain="domain",
+                ),
+                margin=dict(l=10, r=10, t=40, b=10),
+                height=450,
+            )
+            return fig
 
-        # U VELOCITY
-        st.subheader("U Velocity")
-        fig_u = go.Figure(
-            data=go.Contour(
-                x=grid_x_1d,
-                y=grid_y_1d,
-                z=grid_u,
-                colorscale="RdBu_r",
-                line_smoothing=1.3,
-                contours=dict(coloring="heatmap", showlines=False),
-            )
-        )
-        fig_u.update_layout(
-            title=f"{case} U Velocity",
-            xaxis_title="x",
-            yaxis_title="y",
-            height=500,
-        )
-        st.plotly_chart(fig_u, use_container_width=True)
+        # 3-COLUMN SIDE-BY-SIDE LAYOUT
+        col1, col2, col3 = st.columns(3)
 
-        # V VELOCITY
-        st.subheader("V Velocity")
-        fig_v = go.Figure(
-            data=go.Contour(
-                x=grid_x_1d,
-                y=grid_y_1d,
-                z=grid_v,
-                colorscale="RdBu_r",
-                line_smoothing=1.3,
-                contours=dict(coloring="heatmap", showlines=False),
-            )
-        )
-        fig_v.update_layout(
-            title=f"{case} V Velocity",
-            xaxis_title="x",
-            yaxis_title="y",
-            height=500,
-        )
-        st.plotly_chart(fig_v, use_container_width=True)
+        with col1:
+            st.subheader("Absolute Pressure")
+            fig_p = create_flow_figure("Pressure Field", grid_p, "Viridis")
+            st.plotly_chart(fig_p, use_container_width=True)
+
+        with col2:
+            st.subheader("U Velocity")
+            fig_u = create_flow_figure("U Velocity Field", grid_u, "RdBu_r")
+            st.plotly_chart(fig_u, use_container_width=True)
+
+        with col3:
+            st.subheader("V Velocity")
+            fig_v = create_flow_figure("V Velocity Field", grid_v, "RdBu_r")
+            st.plotly_chart(fig_v, use_container_width=True)
 
     except Exception as e:
         st.error(f"Prediction failed: {str(e)}")
+else:
+    st.info("Select parameters on the left sidebar and click **Predict Flow Field** to run the simulation.")
