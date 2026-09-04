@@ -112,35 +112,34 @@ if predict_btn:
 
         # AUTO-ZOOM & CROP LIMITS SPECIFIC TO GEOMETRY REGIONS OF INTEREST
         if case == "Cylinder":
+            # Focus on wake shedding region behind cylinder
             x_min, x_max = -1.0, 5.0
             y_min, y_max = -1.5, 1.5
-            grid_res = 250
         elif case == "Backward Facing Step":
+            # Focus on recirculation zone behind the step
             x_min, x_max = -1.0, 8.0
             y_min, y_max = -0.5, 1.5
-            grid_res = 200  # Optimized resolution for instant BFS processing
         elif case == "NACA0012":
+            # Focus tightly around the airfoil geometry
             x_min, x_max = -0.5, 1.8
             y_min, y_max = -0.8, 0.8
-            grid_res = 250
         else:
+            # Default tight spatial bounds (e.g., Cavity)
             x_min, x_max = x_coords.min(), x_coords.max()
             y_min, y_max = y_coords.min(), y_coords.max()
-            grid_res = 250
 
-        # Fast regular grid interpolation
-        grid_x_1d = np.linspace(x_min, x_max, grid_res)
-        grid_y_1d = np.linspace(y_min, y_max, grid_res)
+        # Interpolate spatial points onto a dense regular grid for high-resolution rendering
+        grid_x_1d = np.linspace(x_min, x_max, 350)
+        grid_y_1d = np.linspace(y_min, y_max, 350)
         grid_x, grid_y = np.meshgrid(grid_x_1d, grid_y_1d)
 
-        # Switched to 'linear' interpolation for significantly faster execution (especially BFS)
-        grid_p = griddata((x_coords, y_coords), p, (grid_x, grid_y), method="linear")
-        grid_u = griddata((x_coords, y_coords), u, (grid_x, grid_y), method="linear")
-        grid_v = griddata((x_coords, y_coords), v, (grid_x, grid_y), method="linear")
+        grid_p = griddata((x_coords, y_coords), p, (grid_x, grid_y), method="cubic")
+        grid_u = griddata((x_coords, y_coords), u, (grid_x, grid_y), method="cubic")
+        grid_v = griddata((x_coords, y_coords), v, (grid_x, grid_y), method="cubic")
 
         st.success(f"Prediction completed for {case}")
 
-        # UNIFORM PLOTTING FUNCTION FOR EQUAL FIELD SIZES
+        # CLEAN, HIGH-CONTRAST ZOOMED FLOW FIELD PLOTTING FUNCTION
         def create_flow_figure(z_data, colorscale="Turbo", height=480):
             fig = go.Figure(
                 data=go.Contour(
@@ -151,7 +150,7 @@ if predict_btn:
                     line_smoothing=1.3,
                     contours=dict(
                         coloring="heatmap",
-                        showlines=False,
+                        showlines=False,  # Completely removes contour isolines
                     ),
                     line=dict(width=0),
                     colorbar=dict(
@@ -167,19 +166,19 @@ if predict_btn:
                     range=[x_min, x_max],
                     showgrid=False,
                     zeroline=False,
-                    autorange=False,
+                    constrain="domain",
                 ),
                 yaxis=dict(
                     title="y",
                     range=[y_min, y_max],
+                    scaleanchor="x",
+                    scaleratio=1,
                     showgrid=False,
                     zeroline=False,
-                    autorange=False,
-                    # Removed scaleanchor="x" constraint so all figures stretch evenly
+                    constrain="domain",
                 ),
                 margin=dict(l=15, r=15, t=15, b=15),
                 height=height,
-                autosize=True,
             )
             return fig
 
